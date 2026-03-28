@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailMate - Indian Railways Assistant</title>
+    <style>
+        :root {
+            /* RailMate Blue Theme */
+            --primary-color: #1e3a8a; 
+            --primary-dark: #1e40af;
+            --secondary-color: #1e293b;
+            --bg-color: #f0f9ff;
+            --chat-bg: #ffffff;
+            --user-msg-bg: #dbeafe; 
+            --bot-msg-bg: #f1f5f9;
+            --text-color: #333;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            max-height: 900px;
+            background-color: var(--chat-bg);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        @media (min-width: 501px) {
+            .app-container {
+                height: 90vh;
+                border-radius: 12px;
+            }
+        }
+
+        /* --- Intro Animation Layer: Train --- */
+        #intro-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Railway Track */
+        .intro-track {
+            width: 100%;
+            height: 20px;
+            background: #b0bec5;
+            position: absolute;
+            bottom: 20%;
+            /* Sleepers */
+            background-image: repeating-linear-gradient(90deg, #546e7a 0px, #546e7a 20px, transparent 20px, transparent 35px);
+            border-top: 4px solid #78909c;
+            border-bottom: 4px solid #78909c;
+        }
+
+        /* Train Engine */
+        .intro-train {
+            position: absolute;
+            bottom: 20%;
+            left: -350px;
+            width: 200px;
+            height: 80px;
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .engine-body {
+            width: 160px;
+            height: 70px;
+            background: var(--primary-color);
+            border-radius: 10px 30px 5px 5px;
+            position: relative;
+            box-shadow: 4px 8px 12px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+        }
+
+        .engine-body::after { /* Window section */
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            width: 40px;
+            height: 25px;
+            background: #81d4fa;
+            border: 3px solid #0d47a1;
+            border-radius: 4px;
+        }
+
+        .engine-cabin {
+            position: absolute;
+            right: -20px;
+            bottom: 0;
+            width: 40px;
+            height: 65px;
+            background: #f4511e; /* Orange Stripe */
+            border-radius: 0 5px 5px 0;
+        }
+
+        .intro-name-plate {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--primary-color);
+            white-space: nowrap;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Wheels */
+        .intro-wheel {
+            width: 30px;
+            height: 30px;
+            background-color: #222;
+            border: 1px solid #000;
+            border-radius: 50%;
+            position: absolute;
+            bottom: -15px;
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .wheel-rim {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #e0e0e0 0%, #9e9e9e 100%);
+            border: 2px solid #616161;
+            position: relative;
+        }
+        
+        .wheel-rim::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px; height: 6px;
+            background: #424242;
+            border-radius: 50%;
+        }
+
+        .wheel-back { left: 25px; }
+        .wheel-front { right: 25px; }
+
+        /* Animation Keyframes */
+        @keyframes driveIntroTrain {
+            0% { left: -350px; transform: scale(0.9); }
+            10% { transform: scale(1); }
+            90% { transform: scale(1); }
+            100% { left: 110%; transform: scale(0.9); }
+        }
+
+        @keyframes rotateWheel {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* --- Main Chat Interface (Hidden initially) --- */
+        #chat-interface {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.8s ease;
+            min-height: 0;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 10;
+            transform: translateY(-100%); 
+        }
+
+        header.visible {
+            animation: slideDown 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .header-info h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .header-info p {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        #chat-window {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            scroll-behavior: smooth;
+            background-image: radial-gradient(#e3f2fd 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            position: relative;
+            animation: fadeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            word-wrap: break-word;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .message.bot {
+            align-self: flex-start;
+            background-color: var(--bot-msg-bg);
+            border-bottom-left-radius: 2px;
+            color: var(--text-color);
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--user-msg-bg);
+            border-bottom-right-radius: 2px;
+            color: var(--secondary-color);
+        }
+
+        .typing {
+            font-size: 0.8rem;
+            color: #888;
+            margin-left: 10px;
+            display: none;
+            font-style: italic;
+        }
+
+        .options-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .option-chip {
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--secondary-color);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .option-chip:hover {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        /* --- FAQ Styles --- */
+        .faq-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .faq-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .faq-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .faq-question {
+            padding: 12px;
+            font-weight: 600;
+            color: var(--secondary-color);
+            cursor: pointer;
+            position: relative;
+            padding-right: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .faq-question::after {
+            content: '+';
+            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        
+        .faq-item.active .faq-question::after {
+            content: '-';
+            color: var(--primary-dark);
+        }
+
+        .faq-answer {
+            display: none;
+            padding: 0 12px 12px 12px;
+            color: #555;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            border-top: 1px dashed #eee;
+            background-color: #fafafa;
+            animation: slideDownAnswer 0.3s ease-out;
+        }
+
+        .faq-item.active .faq-answer {
+            display: block;
+        }
+
+        @keyframes slideDownAnswer {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Table Styling */
+        .bus-table { /* Reusing class name for structure, but styled for trains */
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .bus-table th {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+        }
+
+        .bus-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+
+        .bus-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .bus-table tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .bus-table tbody tr:hover {
+            background-color: #f0f9ff;
+        }
+
+        .route-text {
+            font-weight: 600;
+            color: var(--secondary-color);
+            font-size: 0.9rem;
+        }
+
+        .via-text {
+            display: block;
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .click-hint {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--primary-color);
+            margin-top: 4px;
+            font-weight: bold;
+            opacity: 0.9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        
+        .badge-express { background-color: #fff3e0; color: #e65100; } 
+        .badge-superfast { background-color: #e8f5e9; color: #2e7d32; } 
+
+        /* --- INPUT AREA --- */
+        .input-area {
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #eee;
+            display: none; /* Hidden Initially */
+            opacity: 0;
+            gap: 10px;
+            align-items: center;
+            transition: opacity 0.5s ease;
+            z-index: 2000; 
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        button#send-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        button#send-btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        button#send-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            margin-left: 2px;
+        }
+
+        .district-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .district-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            text-align: center;
+            cursor: pointer;
+        }
+        .district-btn:hover {
+            background: #dbeafe;
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- 1. INTRO LAYER: Train Animation -->
+        <div id="intro-layer">
+            <div class="intro-track"></div>
+            <div class="intro-train" id="anim-train">
+                <div class="engine-body">
+                    <div class="intro-name-plate">RailMate</div>
+                </div>
+                <div class="engine-cabin"></div>
+                <!-- Wheels -->
+                <div class="intro-wheel wheel-back">
+                    <div class="wheel-rim"></div>
+                </div>
+                <div class="intro-wheel wheel-front">
+                    <div class="wheel-rim"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. MAIN CHAT INTERFACE -->
+        <div id="chat-interface">
+            <header id="main-header">
+                <div class="header-info">
+                    <h1>RailMate Assistant</h1>
+                    <p>Online | Indian Railways Enquiry</p>
+                </div>
+            </header>
+
+            <main id="chat-window">
+                <!-- Messages injected here -->
+            </main>
+            
+            <div class="typing" id="typing-indicator">RailMate is typing...</div>
+        </div>
+
+        <!-- 3. INPUT AREA -->
+        <div class="input-area" id="input-area">
+            <input type="text" id="user-input" placeholder="Type a state or train name..." autocomplete="off">
+            <button id="send-btn" aria-label="Send Message">
+                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Data: FAQ ---
+        const allFaqs = [
+            { q: "How to book tickets online?", a: "You can book tickets via IRCTC website (irctc.co.in) or the IRCTC Rail Connect App." },
+            { q: "What is the cancellation charge?", a: "Cancellation charges depend on time. If cancelled 48 hrs before, a flat fee is charged. Chart prepared tickets cannot be cancelled online." },
+            { q: "Can I travel with a waitlisted ticket?", a: "No, traveling with a waitlisted (WL) ticket is not allowed. You must buy a counter ticket if confirmed." },
+            { q: "How to check PNR status?", a: "Send SMS 'PNR <10-digit PNR>' to 139 or check on the IRCTC app." },
+            { q: "What is Tatkal booking?", a: "Tatkal booking opens at 10:00 AM for AC classes and 11:00 AM for Non-AC classes, one day before the journey." },
+            { q: "Is home delivery of tickets available?", a: "No, tickets are electronic (e-ticket). You only need a valid ID proof during travel." },
+            { q: "Are pets allowed in trains?", a: "Pets can be booked in Brake Van (Luggage Coach). They are not allowed in passenger compartments." },
+            { q: "What if I miss my train?", a: "If you miss the train, you can file a TDR (Ticket Deposit Receipt) online within a specific time for partial refund." },
+            { q: "Is there a senior citizen concession?", a: "Currently, concessions for senior citizens are suspended by Indian Railways." },
+            { q: "Do trains run on time?", a: "Train schedules are subject to operational conditions. It is advised to check live status before departure." }
+        ];
+
+        // --- Data: States & Train Routes (Accurate Info) ---
+        // Replacing Districts with States
+        const states = [
+            "Maharashtra", "Karnataka", "Delhi", "Tamil Nadu", 
+            "Andhra Pradesh", "Gujarat", "Kerala", "West Bengal", 
+            "Rajasthan", "Uttar Pradesh", "Madhya Pradesh", "Bihar"
+        ];
+
+        // Replacing Local Hubs with Train Routes
+        // Structure: Key = State, Value = Array of Train Objects (Hyderabad Origin)
+        const trainRoutes = {
+            "Maharashtra": [
+                { name: "Hussain Sagar Exp", num: "12702", time: "21:45", dest: "Mumbai", price: 1500, type: "Superfast" },
+                { name: "Mumbai Express", num: "17032", time: "20:40", dest: "Mumbai", price: 1100, type: "Express" },
+                { name: "Ajanta Express", num: "17063", time: "18:10", dest: "Aurangabad", price: 800, type: "Superfast" }
+            ],
+            "Karnataka": [
+                { name: "Kacheguda Exp", num: "12786", time: "21:00", dest: "Bengaluru", price: 1210, type: "Superfast" },
+                { name: "Garib Rath", num: "12214", time: "18:45", dest: "Bengaluru", price: 950, type: "Superfast" },
+                { name: "Wainganga Exp", num: "12252", time: "13:50", dest: "Bengaluru", price: 1400, type: "Superfast" }
+            ],
+            "Delhi": [
+                { name: "Telangana Exp", num: "12723", time: "06:25", dest: "New Delhi", price: 1900, type: "Superfast" },
+                { name: "Rajdhani Exp", num: "12437", time: "12:15", dest: "Hazrat Nizamuddin", price: 3500, type: "Superfast" },
+                { name: "Dakshin Exp", num: "12721", time: "22:30", dest: "New Delhi", price: 1450, type: "Superfast" }
+            ],
+            "Tamil Nadu": [
+                { name: "Charminar Exp", num: "12760", time: "18:30", dest: "Chennai", price: 1350, type: "Superfast" },
+                { name: "Chennai Exp", num: "12604", time: "16:55", dest: "Chennai", price: 1200, type: "Superfast" }
+            ],
+            "Andhra Pradesh": [
+                { name: "Narayanadri Exp", num: "12734", time: "18:20", dest: "Tirupati", price: 950, type: "Superfast" },
+                { name: "Godavari Exp", num: "12728", time: "17:30", dest: "Visakhapatnam", price: 1100, type: "Superfast" },
+                { name: "Krishna Exp", num: "17406", time: "06:05", dest: "Tirupati", price: 600, type: "Express" }
+            ],
+            "Gujarat": [
+                { name: "Okha Express", num: "16733", time: "05:45", dest: "Rajkot", price: 1600, type: "Express" },
+                { name: "Rameswaram Exp", num: "16734", time: "07:20", dest: "Ahmedabad", price: 1750, type: "Express" }
+            ]
+            // Add more if needed...
+        };
+
+        // Default fallback if state data isn't hard-coded
+        const defaultTrains = (state) => [
+            { name: "Superfast Exp", num: "22901", time: "08:00", dest: state + " City", price: 1200, type: "Superfast" },
+            { name: "Intercity", num: "22902", time: "14:00", dest: state + " Town", price: 800, type: "Express" }
+        ];
+
+        // --- State Management ---
+        let bookingState = 'IDLE'; 
+        let selectedRoute = null;  
+
+        // --- DOM Elements ---
+        const introLayer = document.getElementById('intro-layer');
+        const animTrain = document.getElementById('anim-train');
+        const chatInterface = document.getElementById('chat-interface');
+        const mainHeader = document.getElementById('main-header');
+        const chatWindow = document.getElementById('chat-window');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const inputArea = document.getElementById('input-area');
+
+        // --- Chat Logic ---
+        function appendMessage(text, sender, isHtml = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', sender);
+            if (isHtml) {
+                msgDiv.innerHTML = text;
+            } else {
+                msgDiv.textContent = text;
+            }
+            chatWindow.appendChild(msgDiv);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function showTyping() {
+            typingIndicator.style.display = 'block';
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            typingIndicator.style.display = 'none';
+        }
+
+        // --- FAQ Interaction Logic ---
+        function renderFAQs() {
+            const shuffled = [...allFaqs].sort(() => 0.5 - Math.random());
+            const selectedFaqs = shuffled.slice(0, 8);
+
+            let faqHtml = `<div class="faq-list">`;
+            
+            selectedFaqs.forEach((item, index) => {
+                faqHtml += `
+                    <div class="faq-item" onclick="toggleFaq(this, event)">
+                        <div class="faq-question">${item.q}</div>
+                        <div class="faq-answer">${item.a}</div>
+                    </div>
+                `;
+            });
+            faqHtml += `</div>`;
+
+            appendMessage("Here are some frequently asked questions (8 Max). Tap a question to see answer:", "bot");
+            
+            const faqMsg = document.createElement('div');
+            faqMsg.classList.add('message', 'bot');
+            faqMsg.innerHTML = faqHtml;
+            chatWindow.appendChild(faqMsg);
+            scrollToBottom();
+        }
+
+        function toggleFaq(element, event) {
+            event.stopPropagation();
+            const isActive = element.classList.contains('active');
+            
+            document.querySelectorAll('.faq-item').forEach(el => el.classList.remove('active'));
+
+            if (!isActive) {
+                element.classList.add('active');
+            }
+        }
+
+        window.addEventListener('click', () => {
+            document.querySelectorAll('.faq-item.active').forEach(el => {
+                el.classList.remove('active');
+            });
+        });
+
+        // --- Core Interaction Handlers ---
+        function handleRouteClick(route) {
+            selectedRoute = route;
+            bookingState = 'AWAITING_MEMBER_COUNT';
+            
+            appendMessage(`You selected: <strong>${route.name} (${route.num})</strong> to ${route.dest}`, "user", true);
+
+            setTimeout(() => {
+                appendMessage(`Ticket price for this route is <strong>₹${route.price}</strong> per person.`, "bot", true);
+                setTimeout(() => {
+                    appendMessage("How many members have to travel? (Please enter a number)", "bot");
+                }, 600);
+            }, 500);
+        }
+
+        function handleBotResponse(text) {
+            const lowerText = text.toLowerCase().trim();
+            
+            if (bookingState === 'AWAITING_MEMBER_COUNT') {
+                const matchedState = states.find(d => d.toLowerCase() === lowerText);
+                
+                if (matchedState) {
+                    bookingState = 'IDLE';
+                    selectedRoute = null;
+                    showTrainTimingsForState(matchedState);
+                } else {
+                    const count = parseInt(text);
+                    if (!isNaN(count) && count > 0) {
+                        const total = count * selectedRoute.price;
+                        appendMessage(`Total ticket price for <strong>${count}</strong> members is <strong>₹${total}</strong>.`, "bot", true);
+                        appendMessage("Thank you for using RailMate! Have a safe journey.", "bot");
+                        bookingState = 'IDLE';
+                        selectedRoute = null;
+                    } else {
+                        appendMessage("Please enter a valid number of members (e.g., 2, 5).", "bot");
+                    }
+                }
+                return;
+            }
+
+            const delay = 600 + Math.random() * 800;
+            showTyping();
+
+            setTimeout(() => {
+                hideTyping();
+                
+                if (lowerText.includes("faq") || lowerText.includes("question") || lowerText.includes("help")) {
+                    renderFAQs();
+                    return;
+                }
+
+                if (lowerText.match(/^(hi|hello|hey|start|namaskaram)/)) {
+                    appendMessage("Hello! Welcome to RailMate. 🚆", "bot");
+                    setTimeout(() => {
+                        renderStateChips();
+                    }, 500);
+                    return;
+                }
+
+                const matchedState = states.find(d => d.toLowerCase() === lowerText);
+                
+                if (matchedState) {
+                    showTrainTimingsForState(matchedState);
+                    return;
+                }
+
+                appendMessage("I didn't catch that. Try selecting a state or checking the FAQs.", "bot");
+                renderStateChips();
+
+            }, delay);
+        }
+
+        function renderStateChips() {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.classList.add('options-container');
+
+            const popular = ["Maharashtra", "Karnataka", "Delhi", "Tamil Nadu", "Andhra Pradesh", "Gujarat"];
+            
+            popular.forEach(dist => {
+                const btn = document.createElement('button');
+                btn.classList.add('option-chip');
+                btn.textContent = dist;
+                btn.onclick = () => {
+                    userInput.value = dist;
+                    processUserMessage();
+                };
+                optionsDiv.appendChild(btn);
+            });
+
+            const viewAllBtn = document.createElement('button');
+            viewAllBtn.classList.add('option-chip');
+            viewAllBtn.textContent = "View All States...";
+            viewAllBtn.onclick = () => {
+                showAllStatesGrid();
+            };
+            optionsDiv.appendChild(viewAllBtn);
+
+            const faqBtn = document.createElement('button');
+            faqBtn.classList.add('option-chip');
+            faqBtn.textContent = "FAQ / Questions";
+            faqBtn.onclick = () => {
+                userInput.value = "faq";
+                processUserMessage();
+            };
+            optionsDiv.appendChild(faqBtn);
+
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', 'bot');
+            msgDiv.innerHTML = "Select a destination state or get help:";
+            msgDiv.appendChild(optionsDiv);
+            
+            chatWindow.appendChild(msgDiv);
+            scrollToBottom();
+        }
+
+        function showAllStatesGrid() {
+            const grid = document.createElement('div');
+            grid.classList.add('district-grid');
+            
+            states.forEach(dist => {
+                const btn = document.createElement('div');
+                btn.classList.add('district-btn');
+                btn.textContent = dist;
+                btn.onclick = () => {
+                    userInput.value = dist;
+                    processUserMessage();
+                };
+                grid.appendChild(btn);
+            });
+
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', 'bot');
+            msgDiv.innerHTML = "<strong>All States:</strong>";
+            msgDiv.appendChild(grid);
+            
+            chatWindow.appendChild(msgDiv);
+            scrollToBottom();
+        }
+
+        // Replaces generateLocalTimings
+        function showTrainTimingsForState(state) {
+            // Use hardcoded data if available, else fallback
+            const data = trainRoutes[state] || defaultTrains(state);
+            
+            let tableHtml = `
+                <div style="text-align:center; margin-bottom:8px; font-weight:bold; color:var(--primary-color);">
+                    Trains to ${state}
+                </div>
+                <table class="bus-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Time</th>
+                            <th>Train Info</th>
+                            <th style="width: 70px;">Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.forEach(row => {
+                // Serialize row data for click handler
+                const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
+                
+                tableHtml += `
+                    <tr onclick="window.handleRouteClick(JSON.parse('${rowData}'))">
+                        <td style="white-space:nowrap;">${row.time}</td>
+                        <td>
+                            <div class="route-text">${row.name} (${row.num})</div>
+                            <span class="via-text">To: ${row.dest}</span>
+                            <span class="click-hint">Tap for price</span>
+                        </td>
+                        <td><span class="badge ${row.type === 'Superfast' ? 'badge-superfast' : 'badge-express'}">${row.type}</span></td>
+                    </tr>
+                `;
+            });
+
+            tableHtml += `
+                    </tbody>
+                </table>
+                <div style="font-size:0.75rem; color:#666; margin-top:8px; text-align:center;">
+                    *Tap on a row to see exact travel price.*
+                </div>
+            `;
+
+            appendMessage(`Here are available trains for <strong>${state}</strong>. Tap a row to see price:`, "bot", true);
+            
+            const tableMsg = document.createElement('div');
+            tableMsg.classList.add('message', 'bot');
+            tableMsg.innerHTML = tableHtml;
+            chatWindow.appendChild(tableMsg);
+            scrollToBottom();
+        }
+
+        function processUserMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            appendMessage(text, 'user');
+            userInput.value = '';
+            handleBotResponse(text);
+        }
+
+        // --- Event Listeners ---
+        sendBtn.addEventListener('click', processUserMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') processUserMessage();
+        });
+
+        // --- Initialization Logic ---
+        window.onload = () => {
+            // 1. Start Train Animation
+            animTrain.style.animation = "driveIntroTrain 4s linear forwards";
+            document.querySelectorAll('.intro-wheel').forEach(w => w.style.animation = "rotateWheel 1s linear infinite");
+
+            // 2. Wait for animation to finish (4s)
+            setTimeout(() => {
+                // Fade out intro layer
+                introLayer.style.opacity = '0';
+                
+                setTimeout(() => {
+                    // Remove intro layer from DOM flow
+                    introLayer.style.display = 'none';
+                    
+                    // Show Main Chat Interface
+                    chatInterface.style.opacity = '1';
+                    chatInterface.style.pointerEvents = 'all';
+                    
+                    // Animate Header In
+                    mainHeader.classList.add('visible');
+                    
+                    // INPUT AREA LOGIC: Show and Fade In
+                    inputArea.style.display = 'flex';
+                    setTimeout(() => {
+                        inputArea.style.opacity = '1';
+                    }, 50);
+                    
+                    // Start Conversation
+                    setTimeout(() => {
+                        appendMessage("Hello! I am RailMate. 🚆", "bot");
+                    }, 500);
+                    
+                    setTimeout(() => {
+                        renderStateChips();
+                    }, 1300);
+
+                }, 500); // Wait for fade out transition
+                
+            }, 4000); // Drive duration
+        };
+
+    </script>
+</body>
+</html>
