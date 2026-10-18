@@ -578,6 +578,9 @@
     </div>
 
     <script>
+ // --- AWS API Configuration ---
+const API_BASE =
+    "https://6yo3y5i6gd.execute-api.ap-south-1.amazonaws.com";
         // --- Data: FAQ ---
         const allFaqs = [
             { q: "How to book tickets online?", a: "You can book tickets via IRCTC website (irctc.co.in) or the IRCTC Rail Connect App." },
@@ -864,58 +867,155 @@
         }
 
         // Replaces generateLocalTimings
-        function showTrainTimingsForState(state) {
-            // Use hardcoded data if available, else fallback
-            const data = trainRoutes[state] || defaultTrains(state);
-            
-            let tableHtml = `
-                <div style="text-align:center; margin-bottom:8px; font-weight:bold; color:var(--primary-color);">
-                    Trains to ${state}
-                </div>
-                <table class="bus-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 60px;">Time</th>
-                            <th>Train Info</th>
-                            <th style="width: 70px;">Type</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
+       // --- Fetch Train Information from AWS ---
+async function showTrainTimingsForState(state) {
+    showTyping();
 
-            data.forEach(row => {
-                // Serialize row data for click handler
-                const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
-                
-                tableHtml += `
-                    <tr onclick="window.handleRouteClick(JSON.parse('${rowData}'))">
-                        <td style="white-space:nowrap;">${row.time}</td>
-                        <td>
-                            <div class="route-text">${row.name} (${row.num})</div>
-                            <span class="via-text">To: ${row.dest}</span>
-                            <span class="click-hint">Tap for price</span>
-                        </td>
-                        <td><span class="badge ${row.type === 'Superfast' ? 'badge-superfast' : 'badge-express'}">${row.type}</span></td>
-                    </tr>
-                `;
-            });
+    try {
+        const url =
+            `${API_BASE}/trains?state=${encodeURIComponent(state)}`;
 
-            tableHtml += `
-                    </tbody>
-                </table>
-                <div style="font-size:0.75rem; color:#666; margin-top:8px; text-align:center;">
-                    *Tap on a row to see exact travel price.*
-                </div>
-            `;
+        const response = await fetch(url);
 
-            appendMessage(`Here are available trains for <strong>${state}</strong>. Tap a row to see price:`, "bot", true);
-            
-            const tableMsg = document.createElement('div');
-            tableMsg.classList.add('message', 'bot');
-            tableMsg.innerHTML = tableHtml;
-            chatWindow.appendChild(tableMsg);
-            scrollToBottom();
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
         }
+
+        const trains = await response.json();
+
+        // Support either an array or an object containing an items array.
+        const trainList = Array.isArray(trains)
+            ? trains
+            : Array.isArray(trains.Items)
+                ? trains.Items
+                : Array.isArray(trains.items)
+                    ? trains.items
+                    : [];
+
+        // Convert AWS field names into the format used by RailMate.
+        const data = trainList.map(train => ({
+            name: train.name ?? "Unknown Train",
+            num: String(train.trainNo ?? train.num ?? ""),
+            time: train.time ?? "Not available",
+            dest: train.dest ?? train.to ?? "Not available",
+            price: Number(train.price ?? train.fare ?? 0),
+            type: train.type ?? "Express"
+        }));
+
+        hideTyping();
+
+        if (data.length === 0) {
+            appendMessage(
+                `Sorry, no train records were found for ${state} in the database. Please try another state.`,
+                "bot"
+            );
+            return;
+        }
+
+        let tableHtml = `
+            <div style="text-align:center; margin-bottom:8px;
+                        font-weight:bold; color:var(--primary-color);">
+                Trains for ${state}
+            </div>
+
+            <table class="bus-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px;">Time</th>
+                        <th>Train Info</th>
+                        <th style="width:70px;">Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        data.forEach((row, index) => {
+            tableHtml += `
+                <tr data-train-index="${index}">
+                    <td style="white-space:nowrap;">
+                        ${escapeHtml(row.time)}
+                    </td>
+
+                    <td>
+                        <div class="route-text">
+                            ${escapeHtml(row.name)}
+                            (${escapeHtml(row.num)})
+                        </div>
+
+                        <span class="via-text">
+                            To: ${escapeHtml(row.dest)}
+                        </span>
+
+                        <span class="click-hint">
+                            Tap for price
+                        </span>
+                    </td>
+
+                    <td>
+                        <span class="badge ${
+                            row.type.toLowerCase() === "superfast"
+                                ? "badge-superfast"
+                                : "badge-express"
+                        }">
+                            ${escapeHtml(row.type)}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableHtml += `
+                </tbody>
+            </table>
+
+            <div style="font-size:0.75rem; color:#666;
+                        margin-top:8px; text-align:center;">
+                *Select a train to see its stored ticket price.*
+            </div>
+        `;
+
+        appendMessage(
+            `Here are the train records for ${state}. Tap a row to see the price:`,
+            "bot"
+        );
+
+        const tableMsg = document.createElement("div");
+        tableMsg.classList.add("message", "bot");
+        tableMsg.innerHTML = tableHtml;
+
+        // Attach click handlers without embedding JSON in HTML attributes.
+        tableMsg.querySelectorAll("tbody tr").forEach(rowElement => {
+            rowElement.addEventListener("click", () => {
+                const index = Number(rowElement.dataset.trainIndex);
+                handleRouteClick(data[index]);
+            });
+        });
+
+        chatWindow.appendChild(tableMsg);
+        scrollToBottom();
+
+    } catch (error) {
+        hideTyping();
+
+        console.error("RailMate AWS API error:", error);
+
+        appendMessage(
+            "Sorry, I couldn't load train information from AWS. Please try again.",
+            "bot"
+        );
+    }
+}
+
+// Escape text before displaying information returned by the API.
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[character]);
+}
 
         function processUserMessage() {
             const text = userInput.value.trim();
